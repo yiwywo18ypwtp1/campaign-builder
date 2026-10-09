@@ -10,7 +10,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
-    "db:reset": "node -e \"require('fs').rmSync(require('path').join(require('os').tmpdir(), 'campaign-builder'), { recursive: true, force: true })\""
+    "db:reset": "node -e \"require('fs').rmSync('.data', { recursive: true, force: true })\""
   },
   "dependencies": {
     "@date-fns/tz": "^1.5.0",

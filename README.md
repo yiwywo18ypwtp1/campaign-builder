@@ -30,16 +30,14 @@ npm run dev        # http://localhost:3000
 |---|---|---|
 | `MOCK_LATENCY_MS` | `0` | Задержка каждого вызова mock API |
 | `MOCK_FAILURE_RATE` | `0` | Доля вызовов (0..1), которые падают с 500 |
-| `DATABASE_PATH` | `$TMPDIR/campaign-builder/campaign-builder.sqlite` | Путь к SQLite (`:memory:` в тестах) |
+| `DATABASE_PATH` | `.data/campaign-builder.sqlite` | Путь к SQLite (`:memory:` в тестах) |
 
 Пример: `MOCK_LATENCY_MS=500 MOCK_FAILURE_RATE=0.2 npm run dev`.
 
 ## Mock API
 
-Данные лежат в SQLite-файле во временной папке ОС (`$TMPDIR/campaign-builder/campaign-builder.sqlite`): при первом
-запросе пустая база засевается 50 000 кампаний (~2 с), дальше данные переживают рестарт. `npm run db:reset` удаляет
-базу, следующий запуск засеет её заново. Файл намеренно вне проекта: `next dev` следит за папкой проекта, и изменения
-файлов SQLite вызывали бы пересборку и перезагрузку страницы.
+Данные лежат в SQLite-файле `.data/campaign-builder.sqlite` (в `.gitignore`): при первом запросе пустая база засевается
+50 000 кампаний (~2 с), дальше данные переживают рестарт. `npm run db:reset` удаляет базу, следующий запуск засеет её заново.
 Роль берётся из cookie `role` (`viewer` | `editor` | `admin`, по умолчанию `editor`).
 
 | Метод | Путь | Заметки |
@@ -60,3 +58,13 @@ npm run dev        # http://localhost:3000
 Ошибки всегда в формате `{ error: { code, message, fieldErrors? } }`.
 
 Проверка edge cases будет описана по мере реализации фаз.
+
+## Если dev-сервер перезагружает страницу по кругу
+
+Изредка `next dev` (Turbopack) после множества горячих обновлений начинает присылать `reloadPage: "HMR hash mismatch"`, и
+страница перезагружается снова и снова. Это сбой dev-кеша, не приложения (в production его нет). Лечится так:
+
+```bash
+# остановить next dev, затем
+rm -rf .next && npm run dev
+```

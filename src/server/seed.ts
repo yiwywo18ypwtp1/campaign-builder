@@ -88,7 +88,7 @@ export function seedCampaigns(ownerIds: string[]): Campaign[] {
         end: hasEnd ? toWallTime(new Date(endMs)) : undefined,
         dayparting: [],
       },
-      creatives: [],
+      creatives: i % 4 === 0 ? seedCreatives(i, random) : [],
       spend: started ? Math.round(amount * daysRunning * (0.3 + random() * 0.7)) : 0,
       version: 1,
       createdAt: new Date(createdMs).toISOString(),
@@ -155,4 +155,29 @@ export function seedActivity(campaign: Campaign): { at: string; actorId: string;
     });
   }
   return entries;
+}
+
+const CREATIVE_IMAGES = [
+  { url: "/creatives/sample-1.svg", width: 1200, height: 628 },
+  { url: "/creatives/sample-2.svg", width: 1080, height: 1080 },
+  { url: "/creatives/sample-3.svg", width: 1080, height: 1350 },
+];
+const HEADLINES = ["Up to 50% off this week", "New collection is here", "We miss you — come back", "Free shipping today"];
+const CTAS = ["Learn more", "Buy now", "Sign up", "Get offer"];
+
+/** Every 4th campaign gets 1–2 image creatives (local SVGs in /public/creatives); the first one is primary. */
+function seedCreatives(index: number, random: () => number): Campaign["creatives"] {
+  const count = 1 + Math.floor(random() * 2);
+  return Array.from({ length: count }, (_, n) => {
+    const image = CREATIVE_IMAGES[(index + n) % CREATIVE_IMAGES.length];
+    return {
+      id: `crv_${index + 1}_${n + 1}`,
+      kind: "image" as const,
+      ...image,
+      sizeBytes: 40_000 + Math.floor(random() * 400_000),
+      headline: HEADLINES[Math.floor(random() * HEADLINES.length)],
+      cta: CTAS[Math.floor(random() * CTAS.length)],
+      isPrimary: n === 0,
+    };
+  });
 }

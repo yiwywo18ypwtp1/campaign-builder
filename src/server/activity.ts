@@ -1,13 +1,11 @@
 import "server-only";
 import { z } from "zod";
+import type { ActivityItem, ActivityPage } from "@/features/campaigns/types";
 import { fail, ok, type Result } from "@/lib/result";
 import { decodeCursor, encodeCursor } from "./cursor";
 import { getDb } from "./db";
 
 export const ACTIVITY_PAGE_SIZE = 20;
-
-export type ActivityItem = { id: number; at: string; actorId: string; actorName: string; message: string };
-export type ActivityPage = { items: ActivityItem[]; nextCursor: string | null };
 
 const cursorSchema = z.object({ at: z.string(), id: z.number() });
 

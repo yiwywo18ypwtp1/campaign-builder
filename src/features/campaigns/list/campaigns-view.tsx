@@ -3,7 +3,7 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { RowSelectionState } from "@tanstack/react-table";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { Role } from "@/lib/permissions";
@@ -12,19 +12,17 @@ import type { Preferences } from "@/features/settings/preferences";
 import { savePreferencesAction } from "@/features/settings/actions";
 import { bulkStatusAction, changeStatusAction } from "../actions";
 import type { CampaignListItem, ColumnKey, ListFilters, SortKey } from "../list-query";
-import type { StatusAction } from "../status";
-import type { CampaignStatus } from "../types";
+import { PREDICTED_STATUS, type StatusAction } from "../status";
 import { BulkBar } from "./bulk-bar";
 import { campaignsQueryKey, fetchCampaignPage, patchCampaignRows } from "./campaigns-query";
 import { CampaignsTable } from "./campaigns-table";
 import type { CampaignTableMeta } from "./columns";
 import { FiltersBar } from "./filters-bar";
+import { rememberListUrl } from "./last-list-url";
 import { parseListParams, serializeListParams, type ListViewState } from "./list-params";
 
 const EMPTY_ROWS: CampaignListItem[] = []; // stable fallback: a new [] each render would rebuild the table model
 
-/** Status the row will most likely have after the action; the server response corrects it. */
-const PREDICTED_STATUS: Record<StatusAction, CampaignStatus> = { pause: "paused", resume: "running", archive: "archived" };
 
 type Props = {
   role: Role;
@@ -39,6 +37,9 @@ export function CampaignsView({ role, owners, preferences }: Props) {
   const visibleColumns = view.columns ?? preferences.columns.visible;
   const widths = Object.keys(view.widths).length > 0 ? view.widths : preferences.columns.widths;
 
+  // Also remember the URL the list was opened with (a shared link, a reload).
+  useEffect(() => rememberListUrl(window.location.pathname + window.location.search), []);
+
   const queryClient = useQueryClient();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
@@ -52,7 +53,9 @@ export function CampaignsView({ role, owners, preferences }: Props) {
   function updateView(patch: Partial<ListViewState>) {
     const current = parseListParams(new URLSearchParams(window.location.search));
     const query = serializeListParams({ ...current, ...patch }).toString();
-    window.history.replaceState(null, "", query ? `${pathname}?${query}` : pathname);
+    const url = query ? `${pathname}?${query}` : pathname;
+    window.history.replaceState(null, "", url);
+    rememberListUrl(url);
   }
 
   function updateFilters(patch: Partial<ListFilters>) {

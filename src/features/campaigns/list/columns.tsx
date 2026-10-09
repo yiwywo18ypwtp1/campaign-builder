@@ -10,16 +10,14 @@ import {
   tableFeatures,
 } from "@tanstack/react-table";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatWallTime } from "@/lib/datetime";
 import { formatMoney } from "@/lib/money";
 import { can, type Role } from "@/lib/permissions";
-import { cn } from "@/lib/utils";
 import { COLUMN_LABELS, type CampaignListItem } from "../list-query";
 import { canTransition, STATUS_ACTIONS, TRANSITIONS, type StatusAction } from "../status";
-import type { CampaignStatus } from "../types";
+import { StatusBadge } from "../status-badge";
 
 // Columns and features live at module scope: TanStack Table needs stable references,
 // otherwise it rebuilds its models on every render. Things that change at runtime (role,
@@ -157,23 +155,6 @@ function RowActions({ campaign, meta }: { campaign: CampaignListItem; meta: Camp
         </span>
       )}
     </div>
-  );
-}
-
-const STATUS_STYLES: Record<CampaignStatus, string> = {
-  draft: "bg-muted text-muted-foreground",
-  scheduled: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300",
-  running: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
-  paused: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
-  finished: "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300",
-  archived: "bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
-};
-
-export function StatusBadge({ status }: { status: CampaignStatus }) {
-  return (
-    <Badge variant="secondary" className={cn("capitalize", STATUS_STYLES[status])}>
-      {status}
-    </Badge>
   );
 }
 

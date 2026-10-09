@@ -45,3 +45,17 @@ export type Campaign = CampaignFormValues & {
   updatedAt: string;
   ownerId: string;
 };
+
+/** `GET /api/campaigns/:id/metrics` */
+export type MetricsSnapshot = {
+  impressions: number;
+  clicks: number;
+  spend: number; // minor units
+  ctr: number; // 0..1
+  /** Spend per minute for the last 60 minutes, oldest first. */
+  spendSeries: { minute: string; spend: number }[];
+};
+
+/** `GET /api/campaigns/:id/activity` */
+export type ActivityItem = { id: number; at: string; actorId: string; actorName: string; message: string };
+export type ActivityPage = { items: ActivityItem[]; nextCursor: string | null };

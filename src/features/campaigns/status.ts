@@ -16,3 +16,6 @@ export const TRANSITIONS: Record<StatusAction, { from: readonly CampaignStatus[]
 export function canTransition(status: CampaignStatus, action: StatusAction): boolean {
   return TRANSITIONS[action].from.includes(status);
 }
+
+/** The status a campaign most likely gets after an action (for optimistic UI; the server response is final). */
+export const PREDICTED_STATUS: Record<StatusAction, CampaignStatus> = { pause: "paused", resume: "running", archive: "archived" };
