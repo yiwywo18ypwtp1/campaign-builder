@@ -60,7 +60,7 @@ src/
       types.ts       типы через z.infer + серверные поля
       actions.ts     'use server' — тонкие адаптеры над src/server
       list/          таблица, фильтры, list-params.ts (parse/serialize URL)
-      wizard/        визард, шаги, rule-builder/, автосейв, dirty guard
+      wizard/        визард, шаги (steps/), rule-builder/, use-autosave.ts, use-dirty-guard.ts
       detail/        метрики, статус, activity, read-only дерево правил
     settings/        роль, таймзона, колонки
   server/            'server-only': store, session, campaigns, preferences, activity, metrics, config, mock
@@ -88,8 +88,8 @@ src/
 
 ```
 RHF values ─(подписка без ре-рендера)─► автосейв: dirty? → debounce 2s → safeParse схемы шага (молча)
-  → saveDraftAction(id, values, version) → сервер: роль → валидация → version → запись
-  → новый version → reset(snapshot, { keepValues: true }) → «Saved»
+  → saveDraftAction(id, values, step, version) → сервер: роль → валидация шагов → version → запись
+  → новый version, снимок сохранённых шагов → «Saved»  (RHF не сбрасывается, см. D9)
 Сабмит: handleSubmit → submitCampaignAction → fieldErrors → setError(path) → шаг → фокус
 ```
 
@@ -104,7 +104,8 @@ RHF values ─(подписка без ре-рендера)─► автосей
 | `StatusActions` | Client | `useOptimistic` + Server Action |
 | `LiveMetrics` + `SpendChart` | Client | Polling; перерисовывается только этот лист |
 | `ActivityLog` | Client | Первая страница с сервера, «загрузить ещё» на клиенте |
-| `CampaignWizard` и всё внутри | Client | RHF; данные приходят пропсами с сервера |
+| `CampaignWizard` и всё внутри (шаги, rule builder, Review, индикатор автосейва) | Client | RHF, автосейв, dirty guard; данные приходят пропсами с сервера |
+| `/campaigns/new`, `/[id]/edit` (страницы) | Server | Проверка роли, значения формы, серверный редирект недоступного шага |
 | `RoleSwitcher`, `PreferencesForm` | Client | Формы, вызывают Server Actions |
 
 ## 7. Ключевые решения
@@ -129,8 +130,10 @@ RHF values ─(подписка без ре-рендера)─► автосей
   устаревших ответов видны в коде / `useQuery` / работает, но спрятано в библиотеке.
 - **D8. Уникальность slug — вне zod-схемы.** Resolver вызывается на каждое изменение / async refine /
   спам запросами. Окончательно решает сервер (409 → `setError('slug')`).
-- **D9. Автосейв проверяет шаг молча (`safeParse`)**, сохранения строго по одному, `version` вне значений
-  формы / `trigger()` / показывает ошибки на ещё не заполненных полях.
+- **D9. Автосейв проверяет шаги молча (`safeParse`)**, сохраняет самый длинный валидный префикс шагов, сохранения
+  строго по одному, `version` вне значений формы / `trigger()` / показывает ошибки на ещё не заполненных полях.
+  «Не сохранено» — сравнение со снимком сервера, а не `isDirty` RHF и не `reset()`: сброс стёр бы `dirty` полей,
+  по которому автогенерация slug узнаёт, что slug набран руками.
 - **D10. Rule builder:** `useFieldArray` на группу, `key={field.id}`, `useWatch` только своего `field`,
   при смене `field` правило заменяется целиком, подписки на ошибки — `useFormState({ name, exact: true })` и
   чтение только `errors`. `memo` не понадобился: замер показал < 100 мс на самые тяжёлые операции (фаза 7).
@@ -220,7 +223,7 @@ RHF values ─(подписка без ре-рендера)─► автосей
 | 8 | Budget & Schedule | Кейсы таймзоны и lifetime без end | ✅ |
 | 9 | Review и сабмит | 409 slug мапится на поле | ✅ |
 | 10 | Автосейв + dirty guard | Восстановление черновика, подтверждение ухода | ✅ |
-| 11 | README + финальный ARCHITECTURE | Core готов к сдаче | ⏳ |
+| 11 | README + финальный ARCHITECTURE | Core готов к сдаче | ✅ |
 
 После каждой фазы — отчёт; коммит и пуш — по команде.
 
@@ -606,3 +609,37 @@ RHF values ─(подписка без ре-рендера)─► автосей
   перезагрузка при несохранённом — `beforeunload`, после автосейва — нет; 409 из «другого окна» → сообщение и
   ни одного запроса после; сабмит сразу после изменений и после автосейва → одна запись `scheduled`.
   `beforeunload` при закрытии вкладки headless Chrome через Playwright не показывает; проверено на перезагрузке.
+
+### Фаза 11 — документация
+- `README.md`: запуск, env, mock API и таблицы проверки каждого edge case из §8 задания (где нажать → что ожидать;
+  для гонок — готовые `curl`). Пункты Advanced явно перечислены как не сделанные.
+- `ARCHITECTURE.md`: схема потока формы и D9 приведены в соответствие с реализацией (автосейв не вызывает `reset`),
+  добавлены §11–12.
+
+## 11. Что не сделано (Advanced / Bonus) и как бы делали
+
+| Что | Как бы делали |
+|---|---|
+| Шаг Creatives с загрузкой (10 файлов, отмена, повтор упавших) | `POST /api/uploads` (multipart, `UPLOAD_FAIL_RATE`), очередь на клиенте: у каждого файла свой `AbortController` и статус, повтор — тот же запрос; в форме хранятся только id загруженных файлов |
+| SSE-метрики и реконнект | `EventSource` на `/metrics/stream`, точки графика с серверным `ts` и дедупликацией по нему, backoff при обрыве. Сейчас — polling раз в 2 с, он проще и переживает обрыв сам |
+| Archive → Undo | Оптимистичный архив + тост с таймером; архив фиксируется на сервере по истечении таймера (или сразу, а Undo — обратный переход с проверкой версии). Уход со страницы во время таймера — `beforeunload`/отправка `keepalive` |
+| Bulk «все по фильтру» | Сервер и API уже принимают `{ filter }`; нужен UI: счётчик `total`, подтверждение «Выбрать все 12 000», прогресс по частям |
+| Диалог 409 с diff | Сейчас — сообщение. Диалог: загрузить серверную версию, показать расхождения по полям, «оставить моё / взять серверное» |
+| Drag-n-drop в rule builder и колонках | `@dnd-kit`, подгружать лениво (`next/dynamic`) только на шаге Audience / в настройках; клавиатурное перемещение (кнопки вверх/вниз) уже есть |
+| `editableFields`, смена владельца | Ответ сервера со списком редактируемых полей по роли и статусу; снимает ограничение «admin не сохранит running с `start` в прошлом» |
+| RTL- и e2e-тесты | Покрытие сейчас — 99 unit-тестов и ручные прогоны в headless Chrome (скрипты не в репозитории); e2e на Playwright по сценариям из §5 задания |
+| Bundle analyzer, i18n, тёмная тема, CSV, offline-черновик, feature flags, Storybook | Не начаты |
+
+## 12. Итоговая картина потока данных
+
+```
+Server Component (page) ── читает src/server/* ──► props ──► CampaignWizard (RHF, один FormProvider)
+        ▲                                                         │ изменения значений
+        │ revalidatePath                                          ▼
+Server Action ◄── saveDraftAction (автосейв, 2 с, по одному) / submitCampaignAction (Review)
+        │                                  │
+        ▼                                  ▼
+src/server/campaigns.ts: роль → zod (те же схемы) → версия → SQLite
+        │
+        └─► Result<T>: ok → версия/редирект; fieldErrors → setError(path) → шаг → фокус
+```
