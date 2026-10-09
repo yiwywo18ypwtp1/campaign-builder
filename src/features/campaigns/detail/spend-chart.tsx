@@ -9,7 +9,8 @@ const PADDING = 4;
 type Props = { points: { minute: string; spend: number }[]; currency: string };
 
 export function SpendChart({ points, currency }: Props) {
-  const max = Math.max(1, ...points.map((point) => point.spend));
+  const peak = Math.max(0, ...points.map((point) => point.spend));
+  const max = Math.max(1, peak); // scale of the y axis; at least 1 so an all-zero chart doesn't divide by 0
   const x = (index: number) => PADDING + (index / Math.max(1, points.length - 1)) * (WIDTH - 2 * PADDING);
   const y = (value: number) => HEIGHT - PADDING - (value / max) * (HEIGHT - 2 * PADDING);
   const line = points.map((point, index) => `${x(index)},${y(point.spend)}`).join(" ");
@@ -30,7 +31,7 @@ export function SpendChart({ points, currency }: Props) {
       <figcaption className="flex justify-between text-xs text-muted-foreground">
         <span>60 min ago</span>
         <span>
-          Peak {formatMoney(max, currency)} / min · {formatMoney(total, currency)} in the last hour
+          Peak {formatMoney(peak, currency)} / min · {formatMoney(total, currency)} in the last hour
         </span>
         <span>now</span>
       </figcaption>
