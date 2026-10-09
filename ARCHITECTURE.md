@@ -63,7 +63,7 @@ src/
       detail/        метрики, статус, activity, read-only дерево правил
     settings/        роль, таймзона, колонки
   server/            'server-only': store, session, campaigns, preferences, activity, metrics, config, mock
-  lib/               чистый общий код: permissions, money, Result/ApiError, fetch-json
+  lib/               чистый общий код: permissions, money, result (Result + формат ошибки), fetch-json
   components/ui/     примитивы shadcn
 ```
 
@@ -176,7 +176,7 @@ RHF values ─(подписка без ре-рендера)─► автосей
 | # | Фаза | Готово, когда | Статус |
 |---|---|---|---|
 | 0 | Каркас: Next 16, TS strict, Tailwind, ESLint, Vitest, shadcn, зависимости, git + origin | Приложение собирается, тесты запускаются | ✅ |
-| 1 | Домен и схемы, permissions, money, Result/ApiError | Unit-тесты зелёные; решена типизация путей RHF для рекурсивного дерева | ⏳ |
+| 1 | Домен и схемы, permissions, money, Result | Unit-тесты зелёные; решена типизация путей RHF для рекурсивного дерева | ✅ |
 | 2 | Mock-сервер и route handlers | Эндпоинты отвечают (включая 400/403/409/412); тесты курсора | ⏳ |
 | 3 | Настройки (роль, таймзона, колонки) | Смена роли меняет серверные 403 | ⏳ |
 | 4 | Список | Edge cases списка, замер скролла | ⏳ |
@@ -204,3 +204,26 @@ RHF values ─(подписка без ре-рендера)─► автосей
   - `npm audit`: 5 high в `braces` (dev-цепочка ESLint); `audit fix --force` откатил бы
     `eslint-config-next` до 14 — не применяем.
   - `AGENTS.md` генерирует и поддерживает `next dev` (ссылка на документацию в `node_modules/next/dist/docs`).
+
+### Фаза 1 — домен и схемы
+- `features/campaigns/schemas.ts`: правила (discriminated union по `field`), рекурсивная `RuleGroup`
+  (getter в zod 4), бюджет (union по `type`), расписание, `buildCampaignSchemas(config)` →
+  `{ campaign, steps: { basics, audience, budget } }`.
+- `features/campaigns/types.ts`: типы через `z.infer` + серверные поля `Campaign`.
+- `lib/money.ts`, `lib/permissions.ts`, `lib/result.ts` (`Result<T>`, `ApiErrorBody`, `toFieldErrors`).
+- Тесты: 44 unit-теста (схемы, деньги, права), включая кейс «23:30 по Лос-Анджелесу» с замороженным временем.
+- Решения и находки:
+  - **Типизация путей RHF для рекурсивного дерева.** `FieldPath` из RHF обрывает рекурсию: доступны только
+    `audience.children.${number}.*`, а `audience.children.0.children.1.op` — нет. Решение для фазы 7:
+    дерево самоподобное, у `<любая группа>.children` тот же тип, что у `audience.children`, поэтому
+    rule builder получает путь строкой и приводит его к `"audience.children"` / `` `audience.children.${number}` ``
+    в одном месте. Типы значений остаются точными, «врёт» только литерал пути.
+    Альтернатива — плоское хранение дерева (`id → node`) — усложнила бы форму и сериализацию.
+  - Схема собирается из `shape`-объектов, а не через `.extend()`: шаги и полная схема используют одни и те же
+    поля и одну функцию кросс-проверок `checkBudgetAndSchedule`.
+  - `dayparting` в форме — всегда массив (пустой = без ограничений), а не `optional`: `useFieldArray` проще
+    работать с массивом. Отличие от модели задания осознанное.
+  - Неизвестные ключи zod отбрасывает (`z.object` strip) — «мусорных» ключей после смены `field` в данных нет.
+  - Валюты: все поддерживаемые имеют 2 минорных знака; минимум — один на валюту (из `config`).
+  - Креативы (шаг 4, Advanced) не входят в схему формы Core; на сервере хранятся в `Campaign.creatives`.
+  - `vitest.config.mts` (ESM), иначе Vite 8 предупреждает о загрузке ESM как CommonJS.

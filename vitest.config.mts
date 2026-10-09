@@ -5,7 +5,7 @@ import { defineConfig } from "vitest/config";
 // so the default Node environment is enough. jsdom + RTL come with Advanced.
 export default defineConfig({
   resolve: {
-    alias: { "@": path.resolve(__dirname, "src") },
+    alias: { "@": path.resolve(import.meta.dirname, "src") },
   },
   test: {
     include: ["src/**/*.test.ts"],
