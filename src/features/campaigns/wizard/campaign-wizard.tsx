@@ -9,6 +9,7 @@ import type { AppConfig } from "@/lib/app-config";
 import { cn } from "@/lib/utils";
 import { buildCampaignSchemas } from "../schemas";
 import type { CampaignFormValues } from "../types";
+import { AudienceStep } from "./steps/audience-step";
 import { BasicsStep } from "./steps/basics-step";
 import {
   furthestAllowedStep,
@@ -131,7 +132,8 @@ export function CampaignWizard({ mode, campaignId, defaultValues, config }: Prop
           </h2>
 
           {step === "basics" && <BasicsStep autoSlug={mode === "create"} slugStatus={slugStatus} />}
-          {step !== "basics" && (
+          {step === "audience" && <AudienceStep currencies={config.currencies.map((c) => c.code)} />}
+          {step !== "basics" && step !== "audience" && (
             <p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
               This step is built in the next phases of the task.
             </p>

@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
-import { Controller, useFormContext } from "react-hook-form";
+import { Controller, useFormContext, useFormState } from "react-hook-form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -24,13 +24,10 @@ type Props = {
 };
 
 export function BasicsStep({ autoSlug, slugStatus }: Props) {
-  const {
-    register,
-    control,
-    setValue,
-    getFieldState,
-    formState: { errors },
-  } = useFormContext<CampaignFormValues>();
+  const { register, control, setValue, getFieldState } = useFormContext<CampaignFormValues>();
+  // useFormState subscribes only this component to errors. Reading `formState.errors` from the
+  // context would subscribe the form's root (the whole wizard) and re-render every step on each error change.
+  const { errors } = useFormState({ control, name: ["name", "slug", "objective"] });
 
   return (
     <div className="grid gap-6">
