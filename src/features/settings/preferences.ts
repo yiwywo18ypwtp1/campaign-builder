@@ -6,7 +6,7 @@ import { COLUMN_KEYS } from "@/features/campaigns/list-query";
 export const preferencesSchema = z.object({
   defaultTimezone: z.string().min(1),
   columns: z.object({
-    visible: z.array(z.enum(COLUMN_KEYS)),
+    visible: z.array(z.enum(COLUMN_KEYS)).min(1, "Show at least one column"),
     order: z.array(z.enum(COLUMN_KEYS)),
     widths: z.partialRecord(z.enum(COLUMN_KEYS), z.int().min(60).max(800)),
   }),

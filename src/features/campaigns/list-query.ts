@@ -12,6 +12,17 @@ export type SortKey = (typeof SORT_KEYS)[number];
 export const COLUMN_KEYS = ["name", "status", "objective", "budget", "spend", "start", "end", "owner"] as const;
 export type ColumnKey = (typeof COLUMN_KEYS)[number];
 
+export const COLUMN_LABELS: Record<ColumnKey, string> = {
+  name: "Name",
+  status: "Status",
+  objective: "Objective",
+  budget: "Budget",
+  spend: "Spend",
+  start: "Start",
+  end: "End",
+  owner: "Owner",
+};
+
 const dateSchema = z.iso.date(); // "YYYY-MM-DD"
 
 export const listFiltersSchema = z.object({
