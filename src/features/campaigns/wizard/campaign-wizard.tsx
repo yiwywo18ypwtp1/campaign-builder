@@ -24,6 +24,8 @@ import {
   WIZARD_STEPS,
   type WizardStep,
 } from "./steps";
+import { useAutosave, type SaveState } from "./use-autosave";
+import { useDirtyGuard } from "./use-dirty-guard";
 import { useSlugAvailability } from "./use-slug-availability";
 
 type Props = {
@@ -58,7 +60,14 @@ export function CampaignWizard({ mode, campaignId, version, status, defaultValue
   });
 
   const slug = useWatch({ control: form.control, name: "slug" });
-  const slugStatus = useSlugAvailability(slug, campaignId);
+
+  // Only drafts are autosaved: a running campaign is changed with the final "Save changes" button.
+  const schedules = status === undefined || status === "draft"; // what the final button does
+  const autosave = useAutosave({ form, steps: schemas.steps, enabled: schedules, id: campaignId, version });
+  useDirtyGuard(autosave.hasUnsavedChanges);
+
+  // After the first autosave the draft has an id: its own slug must not count as taken.
+  const slugStatus = useSlugAvailability(slug, autosave.id);
 
   const showStep = (next: WizardStep, options?: { replace?: boolean }) => writeStepToUrl(pathname, next, options);
 
@@ -85,7 +94,6 @@ export function CampaignWizard({ mode, campaignId, version, status, defaultValue
     previousStep.current = step;
   }, [step]);
 
-  const schedules = status === undefined || status === "draft"; // what the final button does
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string>();
 
@@ -109,13 +117,17 @@ export function CampaignWizard({ mode, campaignId, version, status, defaultValue
   async function submit(values: CampaignFormValues) {
     setSubmitting(true);
     setSubmitError(undefined);
-    const result = await submitCampaignAction({ id: campaignId, values, version });
+    // A running autosave must finish first: it changes the version this submit is based on.
+    const saved = await autosave.settle();
+    const result = await submitCampaignAction({ id: saved.id, values, version: saved.version });
     if (result.ok) {
+      autosave.finish();
       toast.success(schedules ? "Campaign scheduled" : "Campaign saved");
       router.push(`/campaigns/${result.data.id}`);
       return; // stay in the "submitting" state until the page changes
     }
     setSubmitting(false);
+    autosave.resume();
 
     const { code, message, fieldErrors } = result.error;
     if (code === "VERSION_CONFLICT") {
@@ -163,7 +175,7 @@ export function CampaignWizard({ mode, campaignId, version, status, defaultValue
   return (
     <FormProvider {...form}>
       <div className="grid gap-6">
-        <nav aria-label="Wizard steps">
+        <nav aria-label="Wizard steps" className="flex flex-wrap items-center justify-between gap-2">
           <ol className="flex flex-wrap gap-2">
             {WIZARD_STEPS.map((item, i) => (
               <li key={item}>
@@ -181,6 +193,7 @@ export function CampaignWizard({ mode, campaignId, version, status, defaultValue
               </li>
             ))}
           </ol>
+          {schedules && <SaveIndicator state={autosave.state} message={autosave.message} onRetry={autosave.retry} />}
         </nav>
 
         {/* Enter in a field means "Next", not a native form submit. */}
@@ -230,6 +243,33 @@ export function CampaignWizard({ mode, campaignId, version, status, defaultValue
  */
 function writeStepToUrl(pathname: string, step: WizardStep, { replace = false } = {}) {
   const url = `${pathname}?step=${step}`;
-  if (replace) window.history.replaceState(null, "", url);
-  else window.history.pushState(null, "", url);
+  // Entries carry `wizard: true`, so the dirty guard can tell steps from the page the user came from.
+  if (replace) window.history.replaceState(window.history.state, "", url);
+  else window.history.pushState({ wizard: true }, "", url);
+}
+
+const SAVE_LABELS: Record<SaveState, string> = {
+  idle: "",
+  saved: "Draft saved",
+  saving: "Saving…",
+  unsaved: "Unsaved changes",
+  error: "Couldn't save the draft",
+  conflict: "Changed in another window — reload to continue",
+};
+
+/** Autosave status, announced politely to screen readers. */
+function SaveIndicator({ state, message, onRetry }: { state: SaveState; message?: string; onRetry: () => void }) {
+  return (
+    <p aria-live="polite" className={cn("text-sm text-muted-foreground", (state === "error" || state === "conflict") && "text-destructive")}>
+      {SAVE_LABELS[state]}
+      {state === "error" && (
+        <>
+          {message ? ` (${message})` : ""}{" "}
+          <button type="button" className="underline" onClick={onRetry}>
+            Retry
+          </button>
+        </>
+      )}
+    </p>
+  );
 }
