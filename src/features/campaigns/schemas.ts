@@ -122,6 +122,10 @@ export const scheduleSchema = z.object({
 /* -------------------------------------------------------------------------------------------- */
 
 // Budget minimums come from the server (`GET /api/config`), so the schema is built from config.
+/** Wizard steps that own form fields, in order (the review step has no fields of its own). */
+export const FORM_STEPS = ["basics", "audience", "budget"] as const;
+export type FormStep = (typeof FORM_STEPS)[number];
+
 export type CampaignSchemaConfig = {
   currencies: { code: string; minAmount: number }[];
 };
@@ -194,7 +198,7 @@ export function buildCampaignSchemas(config: CampaignSchemaConfig) {
     basics: z.object(basicsShape),
     audience: z.object({ audience: ruleGroupSchema }),
     budget: z.object(budgetAndScheduleShape).superRefine(checkBudgetAndSchedule),
-  };
+  } satisfies Record<FormStep, z.ZodType>;
 
   return { campaign, steps };
 }

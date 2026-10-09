@@ -32,3 +32,11 @@ export function toFieldErrors(error: z.ZodError): Record<string, string> {
   }
   return fieldErrors;
 }
+
+export function ok<T>(data: T): Result<T> {
+  return { ok: true, data };
+}
+
+export function fail(code: ErrorCode, message: string, fieldErrors?: Record<string, string>): Result<never> {
+  return { ok: false, error: fieldErrors ? { code, message, fieldErrors } : { code, message } };
+}
