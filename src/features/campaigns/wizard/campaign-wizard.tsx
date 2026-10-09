@@ -11,6 +11,7 @@ import { buildCampaignSchemas } from "../schemas";
 import type { CampaignFormValues } from "../types";
 import { AudienceStep } from "./steps/audience-step";
 import { BasicsStep } from "./steps/basics-step";
+import { BudgetStep } from "./steps/budget-step";
 import {
   furthestAllowedStep,
   isStepAllowed,
@@ -133,7 +134,8 @@ export function CampaignWizard({ mode, campaignId, defaultValues, config }: Prop
 
           {step === "basics" && <BasicsStep autoSlug={mode === "create"} slugStatus={slugStatus} />}
           {step === "audience" && <AudienceStep currencies={config.currencies.map((c) => c.code)} />}
-          {step !== "basics" && step !== "audience" && (
+          {step === "budget" && <BudgetStep config={config} />}
+          {step === "review" && (
             <p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
               This step is built in the next phases of the task.
             </p>
