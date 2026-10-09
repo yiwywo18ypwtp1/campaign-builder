@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { Toaster } from "sonner";
 import { NavLink } from "@/components/nav-link";
+import { Providers } from "./providers";
 import { getCurrentUser } from "@/server/session";
 import "./globals.css";
 
@@ -40,7 +41,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             </span>
           </nav>
         </header>
-        {children}
+        <Providers>{children}</Providers>
         <Toaster richColors closeButton />
       </body>
     </html>

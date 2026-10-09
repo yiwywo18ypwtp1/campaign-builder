@@ -426,7 +426,8 @@ function nextStatus(campaign: Campaign, action: StatusAction): Campaign["status"
   return start <= Date.now() ? "running" : "scheduled";
 }
 
-export type BulkResult = { ok: string[]; failed: { id: string; reason: string }[] };
+/** `ok` carries the new status, so the client can update loaded rows without refetching every page. */
+export type BulkResult = { ok: { id: string; status: Campaign["status"] }[]; failed: { id: string; reason: string }[] };
 
 /** One request for many campaigns; each one succeeds or fails on its own (partial failure). */
 export function bulkChangeStatus(
@@ -450,7 +451,7 @@ export function bulkChangeStatus(
   db.transaction(() => {
     for (const id of ids) {
       const outcome = changeStatus(user, id, action);
-      if (outcome.ok) result.ok.push(id);
+      if (outcome.ok) result.ok.push({ id, status: outcome.data.status });
       else result.failed.push({ id, reason: outcome.error.message });
     }
   })();

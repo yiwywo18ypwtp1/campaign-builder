@@ -1,15 +1,20 @@
 import "server-only";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { seedActivity, seedCampaigns, USERS } from "./seed";
 
 // SQLite database (better-sqlite3, synchronous API). One connection per server process, kept on
 // `globalThis` so dev hot reload doesn't open a new one on every change.
-// The file survives restarts; delete `.data/` (`npm run db:reset`) to re-seed.
-// Tests set DATABASE_PATH=":memory:".
+//
+// The file lives in the OS temp directory, NOT in the project: `next dev` watches the project
+// folder, and SQLite touches its files even on reads (WAL/shm), which made Turbopack rebuild and
+// reload the page after every request. The file survives server restarts; `npm run db:reset`
+// deletes it. DATABASE_PATH overrides the location (tests use ":memory:").
 
-const DATABASE_PATH = process.env.DATABASE_PATH ?? path.join(process.cwd(), ".data", "campaign-builder.sqlite");
+export const DEFAULT_DATABASE_PATH = path.join(os.tmpdir(), "campaign-builder", "campaign-builder.sqlite");
+const DATABASE_PATH = process.env.DATABASE_PATH ?? DEFAULT_DATABASE_PATH;
 
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS users (

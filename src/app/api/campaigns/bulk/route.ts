@@ -12,7 +12,7 @@ const bodySchema = z.object({
   target: z.union([z.object({ ids: z.array(z.string()).min(1) }), z.object({ filter: listFiltersSchema })]),
 });
 
-/** Body: `{ action, target: { ids } | { filter } }` → `{ ok: string[], failed: { id, reason }[] }`. */
+/** Body: `{ action, target: { ids } | { filter } }` → `{ ok: { id, status }[], failed: { id, reason }[] }`. */
 export async function POST(request: NextRequest) {
   const failure = await simulateNetwork();
   if (failure) return errorResponse(failure);

@@ -216,7 +216,7 @@ describe("changeStatus and bulk", () => {
     const draft = newDraft();
     const result = unwrap(bulkChangeStatus(editor, { ids: [running.id, draft.id, "missing"] }, "pause"));
 
-    expect(result.ok).toEqual([running.id]);
+    expect(result.ok).toEqual([{ id: running.id, status: "paused" }]);
     expect(result.failed).toEqual([
       { id: draft.id, reason: "Can't pause a draft campaign" },
       { id: "missing", reason: "Campaign not found" },

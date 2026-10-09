@@ -30,14 +30,16 @@ npm run dev        # http://localhost:3000
 |---|---|---|
 | `MOCK_LATENCY_MS` | `0` | Задержка каждого вызова mock API |
 | `MOCK_FAILURE_RATE` | `0` | Доля вызовов (0..1), которые падают с 500 |
-| `DATABASE_PATH` | `.data/campaign-builder.sqlite` | Путь к SQLite (`:memory:` в тестах) |
+| `DATABASE_PATH` | `$TMPDIR/campaign-builder/campaign-builder.sqlite` | Путь к SQLite (`:memory:` в тестах) |
 
 Пример: `MOCK_LATENCY_MS=500 MOCK_FAILURE_RATE=0.2 npm run dev`.
 
 ## Mock API
 
-Данные лежат в SQLite-файле `.data/campaign-builder.sqlite`: при первом запросе пустая база засевается
-50 000 кампаний (~2 с), дальше данные переживают рестарт. `npm run db:reset` удаляет базу, следующий запуск засеет её заново.
+Данные лежат в SQLite-файле во временной папке ОС (`$TMPDIR/campaign-builder/campaign-builder.sqlite`): при первом
+запросе пустая база засевается 50 000 кампаний (~2 с), дальше данные переживают рестарт. `npm run db:reset` удаляет
+базу, следующий запуск засеет её заново. Файл намеренно вне проекта: `next dev` следит за папкой проекта, и изменения
+файлов SQLite вызывали бы пересборку и перезагрузку страницы.
 Роль берётся из cookie `role` (`viewer` | `editor` | `admin`, по умолчанию `editor`).
 
 | Метод | Путь | Заметки |
@@ -47,7 +49,7 @@ npm run dev        # http://localhost:3000
 | GET | `/api/campaigns/:id` | `ETag: "version"` |
 | PATCH | `/api/campaigns/:id` | `{ values, step? }` + `If-Match` → 428 без него, 409 при чужой версии |
 | POST | `/api/campaigns/:id/status` | `{ action: "pause" \| "resume" \| "archive" }`, 403 / 422 |
-| POST | `/api/campaigns/bulk` | `{ action, target: { ids } \| { filter } }` → `{ ok, failed }` |
+| POST | `/api/campaigns/bulk` | `{ action, target: { ids } \| { filter } }` → `{ ok: [{ id, status }], failed: [{ id, reason }] }` |
 | GET | `/api/campaigns/slug-available?slug=&excludeId=` | задержка 300–800 мс |
 | POST | `/api/audience/estimate` | тело — `RuleGroup`, задержка 200–1500 мс |
 | GET | `/api/campaigns/:id/activity?cursor` | по 20 записей |
