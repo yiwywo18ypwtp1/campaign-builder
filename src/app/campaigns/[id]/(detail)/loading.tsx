@@ -1,4 +1,7 @@
 // Shown instantly while the server renders the campaign page.
+// It lives in the (detail) route group so it covers only this page, not /campaigns/[id]/edit:
+// a loading boundary starts streaming early, after which redirect()/notFound() can't change
+// the HTTP status anymore (the edit page needs a real 307 for its step guard).
 export default function Loading() {
   return (
     <main className="mx-auto grid w-full max-w-5xl gap-8 px-4 py-6" aria-busy="true" aria-label="Loading campaign">

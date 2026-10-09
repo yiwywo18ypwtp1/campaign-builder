@@ -1,13 +1,7 @@
 import "server-only";
-import type { Objective } from "@/features/campaigns/types";
+import type { AppConfig } from "@/lib/app-config";
 
 // Static app config, served by `GET /api/config` and read directly by Server Components.
-
-export type AppConfig = {
-  currencies: { code: string; minAmount: number }[]; // minAmount in minor units
-  ctaByObjective: Record<Objective, string[]>;
-  timezones: string[];
-};
 
 const CONFIG: AppConfig = {
   currencies: [

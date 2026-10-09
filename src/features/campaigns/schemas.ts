@@ -130,14 +130,16 @@ export type CampaignSchemaConfig = {
   currencies: { code: string; minAmount: number }[];
 };
 
+// Uniqueness is checked separately (async, debounced) and finally by the server.
+export const slugSchema = z
+  .string()
+  .min(3, "At least 3 characters")
+  .max(60, "At most 60 characters")
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Lowercase letters, digits and single dashes only");
+
 const basicsShape = {
   name: z.string().trim().min(3, "At least 3 characters").max(80, "At most 80 characters"),
-  // Uniqueness is checked separately (async, debounced) and finally by the server.
-  slug: z
-    .string()
-    .min(3, "At least 3 characters")
-    .max(60, "At most 60 characters")
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Lowercase letters, digits and single dashes only"),
+  slug: slugSchema,
   objective: objectiveSchema,
 };
 

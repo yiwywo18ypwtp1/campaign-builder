@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { CampaignsView } from "@/features/campaigns/list/campaigns-view";
+import { can } from "@/lib/permissions";
 import { getPreferences } from "@/server/preferences";
 import { getCurrentUser } from "@/server/session";
 import { listUsers } from "@/server/users";
@@ -13,7 +16,14 @@ export default async function CampaignsPage() {
 
   return (
     <main className="mx-auto flex h-[calc(100dvh-3.5rem)] w-full max-w-[1600px] flex-col gap-4 px-4 py-6">
-      <h1 className="text-2xl font-semibold">Campaigns</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Campaigns</h1>
+        {can(user.role, "campaign:create") && (
+          <Button asChild>
+            <Link href="/campaigns/new">New campaign</Link>
+          </Button>
+        )}
+      </div>
       <CampaignsView role={user.role} owners={listUsers()} preferences={getPreferences(user.id)} />
     </main>
   );

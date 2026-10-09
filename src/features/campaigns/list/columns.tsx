@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatWallTime } from "@/lib/datetime";
 import { formatMoney } from "@/lib/money";
-import { can, type Role } from "@/lib/permissions";
+import { can, canEditCampaign, type Role } from "@/lib/permissions";
 import { COLUMN_LABELS, type CampaignListItem } from "../list-query";
 import { canTransition, STATUS_ACTIONS, TRANSITIONS, type StatusAction } from "../status";
 import { StatusBadge } from "../status-badge";
@@ -138,6 +138,13 @@ function RowActions({ campaign, meta }: { campaign: CampaignListItem; meta: Camp
 
   return (
     <div className="flex min-w-0 items-center gap-1">
+      {canEditCampaign(meta.role, campaign.status) && campaign.status !== "archived" && (
+        <Button size="xs" variant="ghost" asChild>
+          <Link href={`/campaigns/${campaign.id}/edit`} aria-label={`Edit ${campaign.name}`}>
+            Edit
+          </Link>
+        </Button>
+      )}
       {actions.map((action) => (
         <Button
           key={action}

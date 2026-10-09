@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActivityLog } from "@/features/campaigns/detail/activity-log";
 import { BackToList } from "@/features/campaigns/detail/back-to-list";
@@ -7,8 +8,10 @@ import { LiveMetrics } from "@/features/campaigns/detail/live-metrics";
 import { RuleTreeView } from "@/features/campaigns/detail/rule-tree-view";
 import { StatusActions } from "@/features/campaigns/detail/status-actions";
 import type { Campaign } from "@/features/campaigns/types";
+import { Button } from "@/components/ui/button";
 import { formatWallTime } from "@/lib/datetime";
 import { formatMoney } from "@/lib/money";
+import { canEditCampaign } from "@/lib/permissions";
 import { listActivity } from "@/server/activity";
 import { getCampaign } from "@/server/campaigns";
 import { getMetrics } from "@/server/metrics";
@@ -45,7 +48,14 @@ export default async function CampaignPage({ params }: PageProps<"/campaigns/[id
               Owner: {ownerName} · v{campaign.version}
             </p>
           </div>
-          <StatusActions campaignId={campaign.id} name={campaign.name} status={campaign.status} role={user.role} />
+          <div className="flex items-center gap-2">
+            <StatusActions campaignId={campaign.id} name={campaign.name} status={campaign.status} role={user.role} />
+            {canEditCampaign(user.role, campaign.status) && campaign.status !== "archived" && (
+              <Button size="sm" asChild>
+                <Link href={`/campaigns/${campaign.id}/edit`}>Edit</Link>
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
