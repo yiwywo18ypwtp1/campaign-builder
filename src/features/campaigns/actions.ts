@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { Result } from "@/lib/result";
-import { bulkChangeStatus, changeStatus, type BulkResult } from "@/server/campaigns";
+import { bulkChangeStatus, changeStatus, submitCampaign, type BulkResult } from "@/server/campaigns";
 import { simulateNetwork } from "@/server/mock";
 import { getCurrentUser } from "@/server/session";
 import { STATUS_ACTIONS, type StatusAction } from "./status";
@@ -35,5 +35,20 @@ export async function bulkStatusAction(ids: string[], action: StatusAction): Pro
 
   const result = bulkChangeStatus(await getCurrentUser(), { ids: parsed.data.ids }, parsed.data.action);
   if (result.ok) revalidatePath("/campaigns/[id]", "page");
+  return result;
+}
+
+const submitSchema = z.object({ id: z.string().optional(), values: z.unknown(), version: z.number().int().optional() });
+
+/** Final button of the wizard. `values` are validated in full on the server, not trusted. */
+export async function submitCampaignAction(input: { id?: string; values: unknown; version?: number }): Promise<Result<Campaign>> {
+  const failure = await simulateNetwork();
+  if (failure) return { ok: false, error: failure };
+
+  const parsed = submitSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: { code: "VALIDATION_FAILED", message: "Invalid request" } };
+
+  const result = submitCampaign(await getCurrentUser(), parsed.data.id, parsed.data.values, parsed.data.version);
+  if (result.ok) revalidatePath(`/campaigns/${result.data.id}`);
   return result;
 }

@@ -396,6 +396,23 @@ export function publishCampaign(user: CurrentUser, id: string, values: unknown, 
   return saveCampaign(current, { ...result.data, status: "scheduled" }, user, "published the campaign");
 }
 
+/**
+ * What the wizard's final button does. A new campaign is created (all steps validated) and then
+ * published; an existing draft is published; any other editable campaign is simply saved in full.
+ */
+export function submitCampaign(user: CurrentUser, id: string | undefined, values: unknown, version: number | undefined): Result<Campaign> {
+  if (id === undefined) {
+    const created = createCampaign(user, { values, step: "budget" });
+    return created.ok ? publishCampaign(user, created.data.id, values, created.data.version) : created;
+  }
+
+  const current = getCampaign(id);
+  if (!current) return fail("NOT_FOUND", "Campaign not found");
+  if (current.status !== "draft") return updateCampaign(user, id, { values, step: "budget" }, version);
+  if (version === undefined) return fail("PRECONDITION_REQUIRED", "The current version is required");
+  return publishCampaign(user, id, values, version);
+}
+
 /* -------------------------------------------------------------------------------------------- */
 /* Status                                                                                        */
 /* -------------------------------------------------------------------------------------------- */

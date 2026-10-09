@@ -36,7 +36,7 @@ export default async function EditCampaignPage({ params, searchParams }: PagePro
   return (
     <main className="mx-auto grid w-full max-w-4xl gap-6 px-4 py-6">
       <h1 className="text-2xl font-semibold">Edit “{campaign.name}”</h1>
-      <CampaignWizard mode="edit" campaignId={campaign.id} defaultValues={values} config={config} />
+      <CampaignWizard mode="edit" campaignId={campaign.id} version={campaign.version} status={campaign.status} defaultValues={values} config={config} />
     </main>
   );
 }
