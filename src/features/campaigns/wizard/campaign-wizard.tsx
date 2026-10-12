@@ -10,6 +10,7 @@ import type { AppConfig } from "@/lib/app-config";
 import { cn } from "@/lib/utils";
 import { submitCampaignAction } from "../actions";
 import { buildCampaignSchemas, FORM_STEPS, type FormStep } from "../schemas";
+import type { LockedField } from "../locked-fields";
 import type { Campaign, CampaignFormValues } from "../types";
 import { AudienceStep } from "./steps/audience-step";
 import { BasicsStep } from "./steps/basics-step";
@@ -36,6 +37,8 @@ type Props = {
   version?: number;
   /** Status of the stored campaign (edit only): a draft is scheduled on submit, others are just saved. */
   status?: Campaign["status"];
+  /** Fields the server won't let change any more (e.g. slug of a running campaign): shown read-only. */
+  lockedFields?: readonly LockedField[];
   defaultValues: CampaignFormValues;
   config: AppConfig;
 };
@@ -45,14 +48,14 @@ type Props = {
  * renders its own fields. Leaving a step validates just that step's fields (`trigger`), the
  * final submit validates everything. The current step lives in the URL (`?step=audience`).
  */
-export function CampaignWizard({ mode, campaignId, version, status, defaultValues, config }: Props) {
+export function CampaignWizard({ mode, campaignId, version, status, lockedFields = [], defaultValues, config }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const step = parseStep(searchParams.get("step")) ?? "basics";
 
   // Built once: the schema depends on server config (budget minimums), not on render state.
-  const [schemas] = useState(() => buildCampaignSchemas(config));
+  const [schemas] = useState(() => buildCampaignSchemas(config, { startLocked: lockedFields.includes("schedule.start") }));
   const form = useForm<CampaignFormValues>({
     resolver: zodResolver(schemas.campaign),
     defaultValues,
@@ -211,9 +214,9 @@ export function CampaignWizard({ mode, campaignId, version, status, defaultValue
             {STEP_LABELS[step]}
           </h2>
 
-          {step === "basics" && <BasicsStep autoSlug={mode === "create"} slugStatus={slugStatus} />}
+          {step === "basics" && <BasicsStep autoSlug={mode === "create"} slugStatus={slugStatus} locked={lockedFields} />}
           {step === "audience" && <AudienceStep currencies={config.currencies.map((c) => c.code)} />}
-          {step === "budget" && <BudgetStep config={config} />}
+          {step === "budget" && <BudgetStep config={config} locked={lockedFields} />}
           {step === "review" && <ReviewStep steps={schemas.steps} onFix={(target) => void fix(target)} />}
           {submitError && (
             <p role="alert" className="rounded-lg border border-destructive/50 p-3 text-sm text-destructive">

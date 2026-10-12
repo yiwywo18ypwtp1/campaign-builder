@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { objectiveSchema } from "../../schemas";
+import { LOCKED_HINT, type LockedField } from "../../locked-fields";
 import type { CampaignFormValues } from "../../types";
 import { FieldError } from "../field-error";
 import { slugify } from "../slugify";
@@ -21,9 +22,13 @@ type Props = {
   /** New campaigns derive the slug from the name until the user edits the slug. */
   autoSlug: boolean;
   slugStatus: SlugStatus;
+  /** Fields the server locked (the campaign has started). */
+  locked: readonly LockedField[];
 };
 
-export function BasicsStep({ autoSlug, slugStatus }: Props) {
+export function BasicsStep({ autoSlug, slugStatus, locked }: Props) {
+  const slugLocked = locked.includes("slug");
+  const objectiveLocked = locked.includes("objective");
   const { register, control, setValue, getFieldState } = useFormContext<CampaignFormValues>();
   // useFormState subscribes only this component to errors. Reading `formState.errors` from the
   // context would subscribe the form's root (the whole wizard) and re-render every step on each error change.
@@ -61,23 +66,25 @@ export function BasicsStep({ autoSlug, slugStatus }: Props) {
             className="max-w-md font-mono"
             aria-invalid={!!errors.slug || slugStatus === "taken"}
             aria-describedby="slug-hint slug-status slug-error"
+            readOnly={slugLocked}
             {...register("slug")}
           />
-          <SlugIndicator status={slugStatus} />
+          {!slugLocked && <SlugIndicator status={slugStatus} />}
         </div>
         <p id="slug-hint" className="text-xs text-muted-foreground">
-          Used in links. Lowercase letters, digits and dashes.
+          {slugLocked ? LOCKED_HINT : "Used in links. Lowercase letters, digits and dashes."}
         </p>
         <FieldError id="slug-error" message={errors.slug?.message} />
       </div>
 
       <fieldset className="grid gap-3" aria-describedby="objective-error">
         <legend className="mb-1 text-sm font-medium">Objective</legend>
+        {objectiveLocked && <p className="-mt-2 text-xs text-muted-foreground">{LOCKED_HINT}</p>}
         <Controller
           control={control}
           name="objective"
           render={({ field }) => (
-            <RadioGroup value={field.value} onValueChange={field.onChange} className="grid gap-3 sm:grid-cols-3">
+            <RadioGroup value={field.value} onValueChange={field.onChange} disabled={objectiveLocked} className="grid gap-3 sm:grid-cols-3">
               {objectiveSchema.options.map((objective) => (
                 <Label
                   key={objective}

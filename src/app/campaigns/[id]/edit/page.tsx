@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { NoPermission } from "@/components/no-permission";
 import { toFormValues } from "@/features/campaigns/form-values";
+import { lockedFields } from "@/features/campaigns/locked-fields";
 import { buildCampaignSchemas } from "@/features/campaigns/schemas";
 import { CampaignWizard } from "@/features/campaigns/wizard/campaign-wizard";
 import { furthestAllowedStep, stepRedirect } from "@/features/campaigns/wizard/steps";
@@ -28,15 +29,18 @@ export default async function EditCampaignPage({ params, searchParams }: PagePro
 
   const config = getConfig();
   const values = toFormValues(campaign);
+  // Decided here, on the server, and passed down: the wizard only shows these fields read-only.
+  const locked = lockedFields(campaign.status);
+  const schemas = buildCampaignSchemas(config, { startLocked: locked.includes("schedule.start") });
 
   // A saved draft may be filled up to some step: a direct link further than that goes to the first invalid step.
-  const redirectTo = stepRedirect((await searchParams).step, furthestAllowedStep(values, buildCampaignSchemas(config).steps));
+  const redirectTo = stepRedirect((await searchParams).step, furthestAllowedStep(values, schemas.steps));
   if (redirectTo) redirect(`/campaigns/${id}/edit?step=${redirectTo}`);
 
   return (
     <main className="mx-auto grid w-full max-w-4xl gap-6 px-4 py-6">
       <h1 className="text-2xl font-semibold">Edit “{campaign.name}”</h1>
-      <CampaignWizard mode="edit" campaignId={campaign.id} version={campaign.version} status={campaign.status} defaultValues={values} config={config} />
+      <CampaignWizard mode="edit" campaignId={campaign.id} version={campaign.version} status={campaign.status} lockedFields={locked} defaultValues={values} config={config} />
     </main>
   );
 }

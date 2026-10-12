@@ -1,7 +1,7 @@
 import type { Rule, RuleField, RuleGroup } from "../../types";
 
-/** Core: the root group plus one level of sub-groups. The schema allows any depth; the UI limits it. */
-export const MAX_GROUP_DEPTH = 2;
+// The nesting limit lives in the schema, so the UI and the server can't disagree about it.
+export { MAX_GROUP_DEPTH } from "../../schemas";
 
 export const COUNTRIES = ["UA", "PL", "DE", "US", "GB", "FR", "ES", "IT", "NL", "SE", "CA", "JP"];
 

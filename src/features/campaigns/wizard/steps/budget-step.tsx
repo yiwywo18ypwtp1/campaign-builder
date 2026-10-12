@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { AppConfig } from "@/lib/app-config";
 import { formatAmount, formatMoney, parseAmount } from "@/lib/money";
+import { LOCKED_HINT, type LockedField } from "../../locked-fields";
 import type { CampaignFormValues } from "../../types";
 import { FieldError } from "../field-error";
 
@@ -32,7 +33,10 @@ const BUDGET_TYPES = [
 ] as const;
 
 /** Step 3: budget and schedule. Cross-field rules (minimum, lifetime needs an end…) live in the zod schema. */
-export function BudgetStep({ config }: { config: AppConfig }) {
+export function BudgetStep({ config, locked }: { config: AppConfig; locked: readonly LockedField[] }) {
+  // After the start, the start moment can't move: neither the start nor the timezone it is in.
+  const timezoneLocked = locked.includes("schedule.timezone");
+  const startLocked = locked.includes("schedule.start");
   const { register, control, setValue, getValues, getFieldState, trigger } = useFormContext<CampaignFormValues>();
   // Only this component listens to errors (not the form root), see BasicsStep.
   const { errors } = useFormState({ control });
@@ -145,18 +149,23 @@ export function BudgetStep({ config }: { config: AppConfig }) {
 
         <div className="grid gap-2">
           <Label htmlFor="schedule-timezone">Timezone</Label>
-          <select
-            id="schedule-timezone"
-            className={`${SELECT_CLASS} max-w-xs`}
-            aria-invalid={!!message("schedule.timezone")}
-            {...register("schedule.timezone", { onChange: () => revalidate("schedule.start", "schedule.end") })}
-          >
-            {config.timezones.map((zone) => (
-              <option key={zone} value={zone}>
-                {zone}
-              </option>
-            ))}
-          </select>
+          {timezoneLocked ? (
+            // A <select> can't be read-only: show the value as text. The form value itself doesn't change.
+            <Input id="schedule-timezone" readOnly value={timezone} className="max-w-xs" aria-describedby="schedule-locked" />
+          ) : (
+            <select
+              id="schedule-timezone"
+              className={`${SELECT_CLASS} max-w-xs`}
+              aria-invalid={!!message("schedule.timezone")}
+              {...register("schedule.timezone", { onChange: () => revalidate("schedule.start", "schedule.end") })}
+            >
+              {config.timezones.map((zone) => (
+                <option key={zone} value={zone}>
+                  {zone}
+                </option>
+              ))}
+            </select>
+          )}
           <FieldError id="schedule-timezone-error" message={message("schedule.timezone")} />
         </div>
 
@@ -169,6 +178,7 @@ export function BudgetStep({ config }: { config: AppConfig }) {
               className="w-56"
               aria-invalid={!!message("schedule.start")}
               aria-describedby="schedule-start-error schedule-hint"
+              readOnly={startLocked}
               {...register("schedule.start", { onChange: () => revalidate("schedule.end") })}
             />
             <FieldError id="schedule-start-error" message={message("schedule.start")} />
@@ -189,6 +199,11 @@ export function BudgetStep({ config }: { config: AppConfig }) {
         <p id="schedule-hint" className="-mt-3 text-xs text-muted-foreground">
           Times are in the campaign timezone ({timezone}), not in your browser&apos;s.
         </p>
+        {startLocked && (
+          <p id="schedule-locked" className="-mt-3 text-xs text-muted-foreground">
+            Start and timezone: {LOCKED_HINT.toLowerCase()}
+          </p>
+        )}
 
         <Dayparting errors={errors} revalidate={revalidate} />
       </section>

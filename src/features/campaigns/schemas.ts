@@ -62,18 +62,49 @@ export const ruleSchema = z.discriminatedUnion("field", [
   }),
 ]);
 
-// Recursive schema: the getter delays evaluation until `ruleGroupSchema` exists.
-// The schema allows any depth; the UI limits nesting (Core: 2 levels).
-export const ruleGroupSchema = z.object({
-  kind: z.literal("group"),
-  op: z.enum(["and", "or"]),
-  get children() {
-    return z
-      .array(z.discriminatedUnion("kind", [ruleGroupSchema, ruleSchema]))
+export type Rule = z.infer<typeof ruleSchema>;
+
+/** A group of rules and sub-groups. Declared by hand: the schema below is built level by level. */
+export interface RuleGroup {
+  kind: "group";
+  op: "and" | "or";
+  children: (RuleGroup | Rule)[];
+}
+
+/**
+ * Nesting limit: the root group plus one level of sub-groups (Core). Shared by the UI and the server.
+ * The limit is part of the schema, not only of the UI: a request with a deeper tree is a validation
+ * error, and zod never descends deeper than this (a recursive schema would recurse as deep as the
+ * input goes, and 2000 levels overflow the call stack).
+ */
+export const MAX_GROUP_DEPTH = 2;
+
+const groupOpSchema = z.enum(["and", "or"]);
+type RuleGroupSchema = z.ZodObject<{
+  kind: z.ZodLiteral<"group">;
+  op: typeof groupOpSchema;
+  children: z.ZodType<RuleGroup["children"], RuleGroup["children"]>;
+}>;
+
+/** Schema of a group at `level` (1 = root). Its children may be groups only above the deepest level. */
+function ruleGroupSchemaAt(level: number): RuleGroupSchema {
+  const child =
+    level < MAX_GROUP_DEPTH
+      ? z.discriminatedUnion("kind", [ruleGroupSchemaAt(level + 1), ruleSchema])
+      : z.discriminatedUnion("kind", [ruleSchema], {
+          error: `Groups can be nested at most ${MAX_GROUP_DEPTH} levels deep`,
+        });
+  return z.object({
+    kind: z.literal("group"),
+    op: groupOpSchema,
+    children: z
+      .array(child)
       .min(1, "Group can't be empty")
-      .max(MAX_RULES_PER_GROUP, `Group can't have more than ${MAX_RULES_PER_GROUP} items`);
-  },
-});
+      .max(MAX_RULES_PER_GROUP, `Group can't have more than ${MAX_RULES_PER_GROUP} items`),
+  });
+}
+
+export const ruleGroupSchema = ruleGroupSchemaAt(1);
 
 /* -------------------------------------------------------------------------------------------- */
 /* Budget & schedule                                                                             */
@@ -143,7 +174,12 @@ const basicsShape = {
   objective: objectiveSchema,
 };
 
-export function buildCampaignSchemas(config: CampaignSchemaConfig) {
+type SchemaOptions = {
+  /** The campaign has started: its start can't change, so "start can't be in the past" doesn't apply. */
+  startLocked?: boolean;
+};
+
+export function buildCampaignSchemas(config: CampaignSchemaConfig, { startLocked = false }: SchemaOptions = {}) {
   // Cross-field rules of step 3. Shared by the step schema and the full schema.
   function checkBudgetAndSchedule(
     value: { budget: z.infer<typeof budgetSchema>; schedule: z.infer<typeof scheduleSchema> },
@@ -172,7 +208,7 @@ export function buildCampaignSchemas(config: CampaignSchemaConfig) {
     }
 
     // "Not in the past" is checked in the campaign timezone, not in the browser's local time.
-    if (isValidLocalDateTime(schedule.start) && isValidTimezone(schedule.timezone)) {
+    if (!startLocked && isValidLocalDateTime(schedule.start) && isValidTimezone(schedule.timezone)) {
       const start = localDateTimeToInstant(schedule.start, schedule.timezone).getTime();
       const currentMinute = Math.floor(Date.now() / 60_000) * 60_000;
       if (start < currentMinute) {

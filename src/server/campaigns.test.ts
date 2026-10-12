@@ -10,6 +10,7 @@ import {
   getDefaultFormValues,
   listCampaigns,
   publishCampaign,
+  submitCampaign,
   updateCampaign,
 } from "./campaigns";
 import { getDb } from "./db";
@@ -173,6 +174,57 @@ describe("updateCampaign (optimistic concurrency)", () => {
     unwrap(updateCampaign(editor, draft.id, { values: { ...draft, slug: `${draft.slug}-v2` }, step: "basics" }, draft.version));
     const values = { ...getDefaultFormValues("UTC"), name: "Takes the old slug", slug: draft.slug };
     expect(createCampaign(editor, { values, step: "basics" }).ok).toBe(true);
+  });
+});
+
+describe("editing a campaign that has started", () => {
+  it("saves a running campaign although its start is in the past", () => {
+    const running = findSeeded("running");
+    const saved = unwrap(updateCampaign(admin, running.id, { values: { ...running, name: "Renamed while running" } }, running.version));
+    expect(saved.name).toBe("Renamed while running");
+    expect(saved.status).toBe("running");
+  });
+
+  it.each([
+    ["slug", (c: Campaign) => ({ ...c, slug: `${c.slug}-changed` })],
+    ["objective", (c: Campaign) => ({ ...c, objective: c.objective === "awareness" ? "conversion" : "awareness" })],
+    ["schedule.start", (c: Campaign) => ({ ...c, schedule: { ...c.schedule, start: "2099-01-01T09:00" } })],
+    ["schedule.timezone", (c: Campaign) => ({ ...c, schedule: { ...c.schedule, timezone: c.schedule.timezone === "UTC" ? "Asia/Tokyo" : "UTC" } })],
+  ])("rejects a change of the locked field %s", (path, change) => {
+    const paused = findSeeded("paused");
+    const error = errorOf(updateCampaign(admin, paused.id, { values: change(paused) }, paused.version));
+    expect(error.code).toBe("VALIDATION_FAILED");
+    expect(Object.keys(error.fieldErrors ?? {})).toEqual([path]);
+  });
+
+  it("still checks the start of drafts and scheduled campaigns", () => {
+    const draft = newDraft();
+    const values = { ...draft, schedule: { ...draft.schedule, start: "2020-01-01T09:00" } };
+    const error = errorOf(updateCampaign(editor, draft.id, { values, step: "budget" }, draft.version));
+    expect(error.fieldErrors).toHaveProperty(["schedule.start"]);
+  });
+});
+
+describe("submitCampaign (new campaign)", () => {
+  const valid = () => ({
+    ...getDefaultFormValues("UTC"),
+    name: "Submitted at once",
+    slug: `submitted-${++slugCounter}`,
+    audience: { kind: "group", op: "and", children: [{ kind: "rule", field: "country", op: "in", value: ["UA"] }] },
+  });
+  const count = (slug: string) => (getDb().prepare("SELECT COUNT(*) AS n FROM campaigns WHERE slug = ?").get(slug) as { n: number }).n;
+
+  it("creates the campaign already scheduled, in one write", () => {
+    const values = valid();
+    const campaign = unwrap(submitCampaign(editor, undefined, values, undefined));
+    expect(campaign).toMatchObject({ status: "scheduled", version: 1 });
+    expect(count(values.slug)).toBe(1);
+  });
+
+  it("leaves nothing behind when the campaign is invalid", () => {
+    const values = { ...valid(), budget: { type: "daily", amount: 1, currency: "USD" } };
+    expect(errorOf(submitCampaign(editor, undefined, values, undefined)).fieldErrors).toHaveProperty(["budget.amount"]);
+    expect(count(values.slug)).toBe(0);
   });
 });
 

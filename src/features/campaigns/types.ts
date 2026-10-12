@@ -1,11 +1,10 @@
 import type { z } from "zod";
+import type { Rule } from "./schemas";
 import type {
   budgetSchema,
   buildCampaignSchemas,
   campaignStatusSchema,
   objectiveSchema,
-  ruleGroupSchema,
-  ruleSchema,
   scheduleSchema,
 } from "./schemas";
 
@@ -13,9 +12,8 @@ import type {
 
 export type CampaignStatus = z.infer<typeof campaignStatusSchema>;
 export type Objective = z.infer<typeof objectiveSchema>;
-export type Rule = z.infer<typeof ruleSchema>;
+export type { Rule, RuleGroup } from "./schemas";
 export type RuleField = Rule["field"];
-export type RuleGroup = z.infer<typeof ruleGroupSchema>;
 export type Budget = z.infer<typeof budgetSchema>;
 export type Schedule = z.infer<typeof scheduleSchema>;
 

@@ -3,6 +3,7 @@ import { SqliteError } from "better-sqlite3";
 import { z } from "zod";
 import type { CampaignListItem, CampaignPage, ListFilters, ListQuery, SortKey } from "@/features/campaigns/list-query";
 import { buildCampaignSchemas, FORM_STEPS, localDateTimeToInstant, type FormStep } from "@/features/campaigns/schemas";
+import { LOCKED_HINT, lockedFields, readPath } from "@/features/campaigns/locked-fields";
 import { canTransition, TRANSITIONS, type StatusAction } from "@/features/campaigns/status";
 import type { Campaign, CampaignFormValues } from "@/features/campaigns/types";
 import { can, canEditCampaign } from "@/lib/permissions";
@@ -313,8 +314,13 @@ const draftInputSchema = z.object({
  * Validates the steps up to `step` and merges *only their parsed data* into `base`.
  * Data of later steps is ignored and stays as it was on the server: we never store unvalidated input.
  */
-function validateDraft(values: unknown, step: FormStep, base: CampaignFormValues): Result<CampaignFormValues> {
-  const { steps } = buildCampaignSchemas(getConfig());
+function validateDraft(
+  values: unknown,
+  step: FormStep,
+  base: CampaignFormValues,
+  options: { startLocked?: boolean } = {},
+): Result<CampaignFormValues> {
+  const { steps } = buildCampaignSchemas(getConfig(), options);
   const merged = { ...base };
   let fieldErrors: Record<string, string> = {};
 
@@ -338,11 +344,21 @@ export function createCampaign(user: CurrentUser, input: unknown): Result<Campai
   const validated = validateDraft(parsedInput.data.values, parsedInput.data.step, getDefaultFormValues(timezone));
   if (!validated.ok) return validated;
 
+  return insertNewCampaign(user, validated.data, "draft", "created the campaign");
+}
+
+/** One INSERT: the campaign either exists in full with this status, or doesn't exist at all. */
+function insertNewCampaign(
+  user: CurrentUser,
+  values: CampaignFormValues,
+  status: "draft" | "scheduled",
+  activity: string,
+): Result<Campaign> {
   const now = new Date().toISOString();
   const created = insertCampaign({
-    ...validated.data,
+    ...values,
     id: crypto.randomUUID(),
-    status: "draft",
+    status,
     creatives: [],
     spend: 0,
     version: 1,
@@ -350,7 +366,7 @@ export function createCampaign(user: CurrentUser, input: unknown): Result<Campai
     updatedAt: now,
     ownerId: user.id,
   });
-  if (created.ok) addActivity(created.data.id, user.id, "created the campaign");
+  if (created.ok) addActivity(created.data.id, user.id, activity);
   return created;
 }
 
@@ -376,7 +392,16 @@ export function updateCampaign(
   if (!parsedInput.success) return fail("VALIDATION_FAILED", "Invalid request");
   const step = current.status === "draft" ? parsedInput.data.step : "budget";
 
-  const validated = validateDraft(parsedInput.data.values, step, current);
+  // Fields that can't change after the start: any change is an error, not silently ignored.
+  const locked = lockedFields(current.status);
+  const lockedErrors = Object.fromEntries(
+    locked
+      .filter((path) => JSON.stringify(readPath(parsedInput.data.values, path)) !== JSON.stringify(readPath(current, path)))
+      .map((path) => [path, LOCKED_HINT]),
+  );
+  if (Object.keys(lockedErrors).length > 0) return fail("VALIDATION_FAILED", "Some fields can't be changed", lockedErrors);
+
+  const validated = validateDraft(parsedInput.data.values, step, current, { startLocked: locked.includes("schedule.start") });
   if (!validated.ok) return validated;
 
   return saveCampaign(current, validated.data, user, "updated the campaign");
@@ -397,13 +422,17 @@ export function publishCampaign(user: CurrentUser, id: string, values: unknown, 
 }
 
 /**
- * What the wizard's final button does. A new campaign is created (all steps validated) and then
- * published; an existing draft is published; any other editable campaign is simply saved in full.
+ * What the wizard's final button does. A new campaign is created already scheduled; an existing
+ * draft is published; any other editable campaign is simply saved in full.
  */
 export function submitCampaign(user: CurrentUser, id: string | undefined, values: unknown, version: number | undefined): Result<Campaign> {
   if (id === undefined) {
-    const created = createCampaign(user, { values, step: "budget" });
-    return created.ok ? publishCampaign(user, created.data.id, values, created.data.version) : created;
+    // A new campaign is validated in full and inserted already scheduled: a single write, so a
+    // failure can't leave an orphan draft behind (create + publish would be two writes).
+    if (!can(user.role, "campaign:create")) return fail("FORBIDDEN", "Your role can't create campaigns");
+    const parsed = buildCampaignSchemas(getConfig()).campaign.safeParse(values);
+    if (!parsed.success) return fail("VALIDATION_FAILED", "Some fields are invalid", toFieldErrors(parsed.error));
+    return insertNewCampaign(user, parsed.data, "scheduled", "created and published the campaign");
   }
 
   const current = getCampaign(id);

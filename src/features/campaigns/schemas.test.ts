@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toFieldErrors } from "@/lib/result";
-import { buildCampaignSchemas, ruleGroupSchema, ruleSchema } from "./schemas";
+import { buildCampaignSchemas, MAX_GROUP_DEPTH, ruleGroupSchema, ruleSchema } from "./schemas";
 import type { CampaignFormValues, RuleGroup } from "./types";
 
 const config = { currencies: [{ code: "USD", minAmount: 1_000 }] }; // min $10.00
@@ -116,6 +116,22 @@ describe("rule group tree", () => {
       value: "x",
     }));
     expect(errorsOf(tooMany)).toHaveProperty(["audience.children"]);
+  });
+
+  it(`rejects nesting deeper than ${MAX_GROUP_DEPTH} levels with an error on that child's kind`, () => {
+    const tooDeep = validCampaign();
+    tooDeep.audience.children = [
+      { kind: "group", op: "and", children: [{ kind: "group", op: "or", children: [{ kind: "rule", field: "tag", op: "has", value: "x" }] }] },
+    ];
+    // zod reports a discriminator mismatch on the discriminator itself.
+    expect(errorsOf(tooDeep)).toEqual({ "audience.children.0.children.0.kind": `Groups can be nested at most ${MAX_GROUP_DEPTH} levels deep` });
+  });
+
+  it("returns a validation error (not a stack overflow) for a hostile 2000-level tree", () => {
+    let tree: unknown = { kind: "rule", field: "tag", op: "has", value: "x" };
+    for (let i = 0; i < 2000; i++) tree = { kind: "group", op: "and", children: [tree] };
+    expect(() => ruleGroupSchema.safeParse(tree)).not.toThrow();
+    expect(ruleGroupSchema.safeParse(tree).success).toBe(false);
   });
 });
 

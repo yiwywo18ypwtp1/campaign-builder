@@ -82,6 +82,9 @@ npm run dev        # http://localhost:3000
 | `end` раньше `start` | End < Start | «End must be after start» у End |
 | Dayparting `22:00–02:00` | «Add window», From 22:00, To 02:00, «Next» | «End must be after start (split overnight intervals)» у To; пересекающиеся окна — ошибка у обоих |
 | 100 правил в rule builder | в `ARCHITECTURE.md` §8 описан замер; вручную — React DevTools → Profiler, печатать в одно правило | перерисовывается только оно (и блок Estimate) |
+| Редактирование запущенной кампании | Роль Admin → кампания со статусом Running → Edit → поменять имя → дойти до Review → «Save changes» | сохраняется, статус остаётся Running. Slug и Start только для чтения, Objective недоступен, таймзона показана текстом |
+| Изменение заблокированного поля через API | `PATCH` running-кампании со сменённым `slug` (роль admin, правильный `If-Match`) | **400**, `fieldErrors.slug` |
+| Слишком глубокое дерево правил | `POST /api/audience/estimate` с группой, вложенной 3+ раз (или 2000 раз) | **400** `VALIDATION_FAILED` в едином формате, не 500 |
 
 ### Автосохранение, конфликты, уход со страницы
 | Что | Как проверить | Ожидание |
